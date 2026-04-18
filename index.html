@@ -71,6 +71,28 @@ canvas{
   border-radius:14px;
   margin-top:10px;
 }
+
+/* floating buttons */
+.fab{
+  position:fixed;
+  right:18px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  bottom:18px;
+  z-index:999;
+}
+
+.fab button{
+  width:55px;
+  height:55px;
+  border-radius:50%;
+  border:none;
+  color:white;
+}
+
+.addBtn{background:#2b6fff;font-size:26px;}
+.histBtn{background:#1f2a44;font-size:18px;}
 </style>
 </head>
 
@@ -94,57 +116,43 @@ canvas{
   <canvas id="graph"></canvas>
 </div>
 
+<!-- NUTRITION -->
 <div class="tab">
   <h2>Nutrition</h2>
 
-  <!-- TOP SUMMARY -->
-  <div id="nutritionSummary"></div>
-
-  <!-- FLOATING CORNER BUTTONS -->
-  <div style="position:fixed;bottom:20px;right:20px;display:flex;flex-direction:column;gap:10px;z-index:999;">
-    
-    <!-- ADD BUTTON -->
-    <button onclick="toggleAdd()"
-      style="width:55px;height:55px;border-radius:50%;border:none;
-      background:#2b6fff;color:white;font-size:26px;">
-      +
-    </button>
-
-    <!-- HISTORY BUTTON -->
-    <button onclick="toggleHistory()"
-      style="width:55px;height:55px;border-radius:50%;border:none;
-      background:#1f2a44;color:white;font-size:16px;">
-      📜
-    </button>
-
+  <!-- floating buttons -->
+  <div class="fab">
+    <button class="addBtn" onclick="toggleAdd()">+</button>
+    <button class="histBtn" onclick="toggleHistory()">📜</button>
   </div>
 
-  <!-- ADD MEAL PANEL -->
+  <div id="nutritionSummary"></div>
+
+  <!-- add meal -->
   <div id="addBox" style="display:none;">
     <input id="foodName" placeholder="Meal name">
     <input id="foodCarbs" type="number" placeholder="Carbs (g)">
     <input id="foodCal" type="number" placeholder="Calories">
     <input id="foodImg" placeholder="Image URL (optional)">
-    <button class="action" onclick="addNutrition()">Save Meal</button>
+    <button class="action" onclick="addMeal()">Save Meal</button>
   </div>
 
-  <!-- PICKER -->
-  <div id="pickBox" style="display:none;"></div>
+  <!-- picker -->
+  <div id="pickBox"></div>
 
-  <!-- HISTORY (now hidden until button press) -->
+  <!-- history -->
   <div id="nutritionList" style="display:none;"></div>
 </div>
 
 <script>
-let data=[];
-let nutrition=[];
 
-let ema=null;
-let alpha=0.5;
+/* DATA */
+let data = JSON.parse(localStorage.getItem("glucose") || "[]");
+let meals = JSON.parse(localStorage.getItem("meals") || "[]");
+let nutritionLog = JSON.parse(localStorage.getItem("nutritionLog") || "[]");
 
-let showAdd=false;
-let showPicker=false;
-let showHistory=false;
+let ema = null;
+let alpha = 0.5;
 
 /* TAB */
 function tab(i){
@@ -154,16 +162,19 @@ function tab(i){
   document.querySelectorAll(".nav button").forEach((b,x)=>{
     b.classList.toggle("active",x===i);
   });
+
   draw();
   renderNutrition();
 }
 
 /* GLUCOSE */
 function addGlucose(){
-  let v=parseFloat(document.getElementById("g").value);
+  let v = parseFloat(document.getElementById("g").value);
   if(isNaN(v)) return;
 
   data.push(v);
+  localStorage.setItem("glucose",JSON.stringify(data));
+
   ema = ema===null ? v : alpha*v+(1-alpha)*ema;
 
   document.getElementById("g").value="";
@@ -174,27 +185,27 @@ function addGlucose(){
 function trend(){
   if(!ema || data.length<2) return "Not enough data";
 
-  let d=data[data.length-1]-ema;
+  let d = data[data.length-1] - ema;
 
   if(d>0.2) return "📈 Rising";
   if(d<-0.2) return "📉 Falling";
   return "➡ Stable";
 }
 
-/* GRAPH (simple version) */
+/* GRAPH */
 function draw(){
-  let c=document.getElementById("graph");
-  let ctx=c.getContext("2d");
+  let c = document.getElementById("graph");
+  let ctx = c.getContext("2d");
   ctx.clearRect(0,0,c.width,c.height);
 
   if(data.length<2) return;
 
-  let max=Math.max(...data);
-  let min=Math.min(...data);
-  let range=max-min||1;
+  let max = Math.max(...data);
+  let min = Math.min(...data);
+  let range = max-min||1;
 
-  let x=i=>(i/(data.length-1))*c.width;
-  let y=v=>c.height-((v-min)/range)*c.height;
+  let x = i => (i/(data.length-1))*c.width;
+  let y = v => c.height - ((v-min)/range)*c.height;
 
   ctx.beginPath();
   ctx.strokeStyle="cyan";
@@ -207,39 +218,39 @@ function draw(){
   ctx.stroke();
 }
 
-/* UPDATE */
+/* UPDATE TRACKER */
 function update(){
-  document.getElementById("status").innerHTML=
+  document.getElementById("status").innerHTML =
     `<div class="card">Trend: ${trend()}</div>`;
 
-  document.getElementById("log").innerHTML=
+  document.getElementById("log").innerHTML =
     data.slice().reverse().map(v=>`<div class="card">🩸 ${v}</div>`).join("");
 
   draw();
 }
 
-function closeAllPanels(){
-  document.getElementById("addBox").style.display = "none";
-  document.getElementById("nutritionList").style.display = "none";
+/* NUTRITION PANEL CONTROL */
+function closePanels(){
+  document.getElementById("addBox").style.display="none";
+  document.getElementById("nutritionList").style.display="none";
 }
 
 function toggleAdd(){
-  let box = document.getElementById("addBox");
-  let isOpen = box.style.display === "block";
-
-  closeAllPanels();
-  box.style.display = isOpen ? "none" : "block";
+  let b=document.getElementById("addBox");
+  let open=b.style.display==="block";
+  closePanels();
+  b.style.display=open?"none":"block";
 }
 
 function toggleHistory(){
-  let box = document.getElementById("nutritionList");
-  let isOpen = box.style.display === "block";
-
-  closeAllPanels();
-  box.style.display = isOpen ? "none" : "block";
+  let b=document.getElementById("nutritionList");
+  let open=b.style.display==="block";
+  closePanels();
+  b.style.display=open?"none":"block";
 }
-/* ADD MEAL */
-function addNutrition(){
+
+/* SAVE MEAL (template only) */
+function addMeal(){
   let name=document.getElementById("foodName").value;
   let carbs=parseFloat(document.getElementById("foodCarbs").value)||0;
   let cal=parseFloat(document.getElementById("foodCal").value)||0;
@@ -247,9 +258,7 @@ function addNutrition(){
 
   if(!name) return;
 
-  // ONLY SAVE TEMPLATE
   meals.push({name,carbs,cal,img});
-
   localStorage.setItem("meals",JSON.stringify(meals));
 
   document.getElementById("foodName").value="";
@@ -260,51 +269,51 @@ function addNutrition(){
   renderPicker();
 }
 
-  nutrition.push({name,carbs,cal,img,time:Date.now()});
+/* USE MEAL (logs eaten item) */
+function useMeal(i){
+  let m = meals[i];
 
-  document.getElementById("foodName").value="";
-  document.getElementById("foodCarbs").value="";
-  document.getElementById("foodCal").value="";
-  document.getElementById("foodImg").value="";
+  nutritionLog.push({
+    ...m,
+    time: Date.now()
+  });
+
+  localStorage.setItem("nutritionLog",JSON.stringify(nutritionLog));
 
   renderNutrition();
 }
 
 /* PICKER */
 function renderPicker(){
-  document.getElementById("pickBox").innerHTML=
-    nutrition.map((n,i)=>`
+  document.getElementById("pickBox").innerHTML =
+    meals.map((m,i)=>`
       <div class="card" onclick="useMeal(${i})">
-        <b>${n.name}</b><br>
-        🍞 ${n.carbs}g | 🔥 ${n.cal}
+        <b>${m.name}</b><br>
+        🍞 ${m.carbs}g | 🔥 ${m.cal}
       </div>
     `).join("");
 }
 
-function useMeal(i){
-  let m=nutrition[i];
-  nutrition.push(m);
-  renderNutrition();
-}
-
 /* NUTRITION VIEW */
 function renderNutrition(){
+
   let now=Date.now();
   let day=86400000;
 
-  let recent=nutrition.filter(n=>now-n.time<day);
+  let recent = nutritionLog.filter(n=>now-n.time<day);
 
-  let carbs=recent.reduce((s,x)=>s+x.carbs,0);
-  let cal=recent.reduce((s,x)=>s+x.cal,0);
+  let carbs = recent.reduce((s,x)=>s+x.carbs,0);
+  let cal = recent.reduce((s,x)=>s+x.cal,0);
 
-  document.getElementById("nutritionSummary").innerHTML=
-    `<div class="card">
+  document.getElementById("nutritionSummary").innerHTML=`
+    <div class="card">
       TODAY<br>
       Carbs: ${carbs}g<br>
       Calories: ${cal}
-    </div>`;
+    </div>
+  `;
 
-  document.getElementById("nutritionList").innerHTML=
+  document.getElementById("nutritionList").innerHTML =
     recent.slice().reverse().map(n=>`
       <div class="card">
         <b>${n.name}</b><br>
@@ -312,11 +321,14 @@ function renderNutrition(){
         ${n.img?`<img src="${n.img}" style="width:100%;border-radius:10px;margin-top:8px;">`:""}
       </div>
     `).join("");
+
+  renderPicker();
 }
 
 /* INIT */
 update();
 renderNutrition();
+
 </script>
 
 </body>
