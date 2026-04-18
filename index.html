@@ -2,9 +2,9 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title>Health Tracker</title>
+<title>Health Tracker Pro</title>
 
 <style>
 body{
@@ -12,16 +12,13 @@ body{
   font-family:-apple-system,BlinkMacSystemFont,sans-serif;
   background:#0b1220;
   color:white;
-  -webkit-tap-highlight-color: transparent;
 }
 
-/* NAV */
 .nav{
   display:flex;
   position:sticky;
   top:0;
   background:#111a2e;
-  z-index:10;
 }
 
 .nav button{
@@ -30,24 +27,15 @@ body{
   border:none;
   background:transparent;
   color:white;
-  font-size:14px;
 }
 
 .nav button.active{
   background:#1f2a44;
 }
 
-/* TABS */
-.tab{
-  display:none;
-  padding:14px;
-}
+.tab{display:none;padding:14px;}
+.tab.active{display:block;}
 
-.tab.active{
-  display:block;
-}
-
-/* CARDS */
 .card{
   background:rgba(255,255,255,0.08);
   border-radius:14px;
@@ -56,7 +44,6 @@ body{
   backdrop-filter:blur(10px);
 }
 
-/* INPUTS */
 input{
   width:100%;
   padding:14px;
@@ -68,7 +55,6 @@ input{
   color:white;
 }
 
-/* BUTTONS */
 button.action{
   width:100%;
   padding:14px;
@@ -77,16 +63,14 @@ button.action{
   border:none;
   background:#2b6fff;
   color:white;
-  font-size:16px;
 }
 
-/* GRAPH */
 canvas{
   width:100%;
   height:220px;
-  margin-top:10px;
   background:rgba(255,255,255,0.05);
   border-radius:14px;
+  margin-top:10px;
 }
 </style>
 </head>
@@ -95,8 +79,8 @@ canvas{
 
 <div class="nav">
   <button class="active" onclick="tab(0)">🩸 Tracker</button>
-  <button onclick="tab(1)">🍽 Meals</button>
-  <button onclick="tab(2)">🔥 Calories</button>
+  <button onclick="tab(1)">🍽 Nutrition</button>
+  <button onclick="tab(2)">📜 History</button>
 </div>
 
 <!-- TRACKER -->
@@ -112,37 +96,41 @@ canvas{
   <canvas id="graph"></canvas>
 </div>
 
-<!-- MEALS -->
+<!-- NUTRITION -->
 <div class="tab">
-  <h2>Meals</h2>
+  <h2>Nutrition</h2>
 
-  <input id="meal" placeholder="Meal name">
-  <input id="carbs" type="number" placeholder="Carbs (g)">
-  <button class="action" onclick="addMeal()">Add</button>
+  <input id="foodName" placeholder="Meal name">
+  <input id="foodCarbs" type="number" placeholder="Carbs (g)">
+  <input id="foodCal" type="number" placeholder="Calories">
+  <input id="foodImg" placeholder="Image URL (optional)">
 
-  <div id="meals"></div>
+  <button class="action" onclick="addNutrition()">Add Meal</button>
+
+  <div>
+    <button class="action" onclick="setView('daily')">Daily</button>
+    <button class="action" onclick="setView('weekly')">Weekly</button>
+  </div>
+
+  <div id="nutritionSummary"></div>
+  <div id="nutritionList"></div>
 </div>
 
-<!-- CALORIES -->
+<!-- HISTORY -->
 <div class="tab">
-  <h2>Calories</h2>
-
-  <input id="food" placeholder="Food">
-  <input id="cal" type="number" placeholder="Calories">
-  <button class="action" onclick="addCal()">Add</button>
-
-  <div id="calLog"></div>
-  <div id="totalCal"></div>
+  <h2>History</h2>
+  <div id="history"></div>
 </div>
 
 <script>
 
-let data=[];
-let meals=[];
-let cal=[];
+/* DATA */
+let data = JSON.parse(localStorage.getItem("glucose") || "[]");
+let nutrition = JSON.parse(localStorage.getItem("nutrition") || "[]");
 
-let ema=null;
-let alpha=0.5;
+let ema = null;
+let alpha = 0.5;
+let viewMode = "daily";
 
 /* TAB */
 function tab(i){
@@ -153,6 +141,8 @@ function tab(i){
     b.classList.toggle("active",x===i);
   });
   draw();
+  renderNutrition();
+  renderHistory();
 }
 
 /* GLUCOSE */
@@ -160,43 +150,21 @@ function addGlucose(){
   let v=parseFloat(document.getElementById("g").value);
   if(isNaN(v)) return;
 
-  data.push(v);
-  document.getElementById("g").value="";
+  data.push({v,time:Date.now()});
+  localStorage.setItem("glucose",JSON.stringify(data));
 
   ema = ema===null ? v : alpha*v+(1-alpha)*ema;
 
-  update();
-}
-
-/* MEALS */
-function addMeal(){
-  let m=document.getElementById("meal").value;
-  let c=parseFloat(document.getElementById("carbs").value);
-  if(!m||isNaN(c)) return;
-
-  meals.push({m,c});
-  document.getElementById("meal").value="";
-  document.getElementById("carbs").value="";
-  update();
-}
-
-/* CALORIES */
-function addCal(){
-  let f=document.getElementById("food").value;
-  let c=parseFloat(document.getElementById("cal").value);
-  if(!f||isNaN(c)) return;
-
-  cal.push({f,c});
-  document.getElementById("food").value="";
-  document.getElementById("cal").value="";
+  document.getElementById("g").value="";
   update();
 }
 
 /* TREND */
 function trend(){
-  if(!ema||data.length<2) return "Not enough data";
+  if(!ema || data.length<2) return "Not enough data";
 
-  let d=data[data.length-1]-ema;
+  let last=data[data.length-1].v;
+  let d=last-ema;
 
   if(d>0.2) return "📈 Rising";
   if(d<-0.2) return "📉 Falling";
@@ -212,8 +180,8 @@ function lobf(){
 
   for(let i=0;i<n;i++){
     sx+=i;
-    sy+=data[i];
-    sxy+=i*data[i];
+    sy+=data[i].v;
+    sxy+=i*data[i].v;
     sx2+=i*i;
   }
 
@@ -233,8 +201,9 @@ function draw(){
 
   if(data.length<2) return;
 
-  let max=Math.max(...data);
-  let min=Math.min(...data);
+  let vals=data.map(d=>d.v);
+  let max=Math.max(...vals);
+  let min=Math.min(...vals);
   let range=max-min||1;
 
   let x=i=>(i/(data.length-1))*c.width;
@@ -248,10 +217,9 @@ function draw(){
   /* RAW */
   ctx.beginPath();
   ctx.strokeStyle="cyan";
-
-  data.forEach((v,i)=>{
-    if(i===0) ctx.moveTo(x(i),y(v));
-    else ctx.lineTo(x(i),y(v));
+  data.forEach((d,i)=>{
+    if(i===0) ctx.moveTo(x(i),y(d.v));
+    else ctx.lineTo(x(i),y(d.v));
   });
   ctx.stroke();
 
@@ -259,9 +227,8 @@ function draw(){
   let e=null;
   ctx.beginPath();
   ctx.strokeStyle="lime";
-
-  data.forEach((v,i)=>{
-    e = e===null ? v : alpha*v+(1-alpha)*e;
+  data.forEach((d,i)=>{
+    e=e===null?d.v:alpha*d.v+(1-alpha)*e;
     if(i===0) ctx.moveTo(x(i),y(e));
     else ctx.lineTo(x(i),y(e));
   });
@@ -269,15 +236,12 @@ function draw(){
 
   /* LOBF */
   let fit=lobf();
-
   ctx.beginPath();
   ctx.strokeStyle="yellow";
-
   fit.forEach((v,i)=>{
     if(i===0) ctx.moveTo(x(i),y(v));
     else ctx.lineTo(x(i),y(v));
   });
-
   ctx.stroke();
 }
 
@@ -288,22 +252,84 @@ function update(){
     `<div class="card">Trend: ${trend()}</div>`;
 
   document.getElementById("log").innerHTML=
-    data.slice().reverse().map(v=>`<div class="card">🩸 ${v}</div>`).join("");
-
-  document.getElementById("meals").innerHTML=
-    meals.map(m=>`<div class="card">🍽 ${m.m} - ${m.c}g</div>`).join("");
-
-  let total=cal.reduce((s,x)=>s+x.c,0);
-
-  document.getElementById("calLog").innerHTML=
-    cal.map(c=>`<div class="card">🔥 ${c.f} - ${c.c}</div>`).join("");
-
-  document.getElementById("totalCal").innerHTML=
-    `<div class="card"><b>Total:</b> ${total} kcal</div>`;
+    data.slice().reverse().map(d=>`<div class="card">🩸 ${d.v}</div>`).join("");
 
   draw();
+  renderHistory();
 }
 
+/* NUTRITION */
+function addNutrition(){
+  let name=document.getElementById("foodName").value;
+  let carbs=parseFloat(document.getElementById("foodCarbs").value)||0;
+  let cal=parseFloat(document.getElementById("foodCal").value)||0;
+  let img=document.getElementById("foodImg").value;
+
+  if(!name) return;
+
+  nutrition.push({name,carbs,cal,img,time:Date.now()});
+  localStorage.setItem("nutrition",JSON.stringify(nutrition));
+
+  document.getElementById("foodName").value="";
+  document.getElementById("foodCarbs").value="";
+  document.getElementById("foodCal").value="";
+  document.getElementById("foodImg").value="";
+
+  renderNutrition();
+}
+
+/* FILTER */
+function getNutrition(){
+  let now=Date.now();
+  let day=86400000;
+
+  return nutrition.filter(n=>{
+    if(viewMode==="daily") return now-n.time<day;
+    if(viewMode==="weekly") return now-n.time<day*7;
+    return true;
+  });
+}
+
+/* RENDER NUTRITION */
+function renderNutrition(){
+
+  let list=getNutrition();
+
+  let carbs=list.reduce((s,x)=>s+x.carbs,0);
+  let cal=list.reduce((s,x)=>s+x.cal,0);
+
+  document.getElementById("nutritionSummary").innerHTML=
+    `<div class="card">
+      ${viewMode.toUpperCase()}<br>
+      Carbs: ${carbs}g<br>
+      Calories: ${cal} kcal
+    </div>`;
+
+  document.getElementById("nutritionList").innerHTML=
+    list.slice().reverse().map(n=>`
+      <div class="card">
+        <b>${n.name}</b><br>
+        🍞 ${n.carbs}g | 🔥 ${n.cal}
+        ${n.img?`<img src="${n.img}" style="width:100%;border-radius:10px;margin-top:8px;">`:""}
+      </div>
+    `).join("");
+}
+
+/* HISTORY */
+function renderHistory(){
+
+  let all=[];
+
+  data.forEach(d=>all.push({t:"🩸 Glucose",v:d.v}));
+  nutrition.forEach(n=>all.push({t:"🍽 Food",v:n.name}));
+
+  document.getElementById("history").innerHTML=
+    all.slice().reverse().map(x=>
+      `<div class="card"><b>${x.t}</b><br>${x.v}</div>`
+    ).join("");
+}
+
+renderNutrition();
 update();
 
 </script>
