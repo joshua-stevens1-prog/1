@@ -247,6 +247,19 @@ function addNutrition(){
 
   if(!name) return;
 
+  // ONLY SAVE TEMPLATE
+  meals.push({name,carbs,cal,img});
+
+  localStorage.setItem("meals",JSON.stringify(meals));
+
+  document.getElementById("foodName").value="";
+  document.getElementById("foodCarbs").value="";
+  document.getElementById("foodCal").value="";
+  document.getElementById("foodImg").value="";
+
+  renderPicker();
+}
+
   nutrition.push({name,carbs,cal,img,time:Date.now()});
 
   document.getElementById("foodName").value="";
