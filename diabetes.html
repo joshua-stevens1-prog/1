@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Health Tracker Pro</title>
+
+<style>
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #0b1220;
+  color: white;
+}
+
+/* NAV */
+.nav {
+  display: flex;
+  position: sticky;
+  top: 0;
+  background: #111a2e;
+}
+
+.nav button {
+  flex: 1;
+  padding: 14px;
+  border: none;
+  background: transparent;
+  color: white;
+}
+
+.nav button.active {
+  background: #1f2a44;
+}
+
+/* TABS */
+.tab {
+  display: none;
+  padding: 15px;
+}
+.tab.active { display: block; }
+
+/* GLASS */
+.card {
+  background: rgba(255,255,255,0.08);
+  border-radius: 14px;
+  padding: 10px;
+  margin: 10px 0;
+  backdrop-filter: blur(10px);
+}
+
+/* INPUT */
+input {
+  padding: 10px;
+  border-radius: 10px;
+  border: none;
+  margin: 5px;
+  background: rgba(255,255,255,0.1);
+  color: white;
+}
+
+button.action {
+  padding: 10px;
+  border-radius: 10px;
+  border: none;
+  background: #2b6fff;
+  color: white;
+  margin: 5px;
+}
+
+/* GRAPH */
+canvas {
+  background: rgba(255,255,255,0.05);
+  border-radius: 14px;
+  margin-top: 10px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="nav">
+  <button class="active" onclick="tab(0)">🩸 Tracker</button>
+  <button onclick="tab(1)">🍽 Meals</button>
+  <button onclick="tab(2)">📊 Graph</button>
+</div>
+
+<!-- TRACKER -->
+<div class="tab active">
+  <h2>Glucose</h2>
+
+  <input id="g" type="number" step="0.1" placeholder="mmol/L">
+  <button class="action" onclick="add()">Add</button>
+
+  <div id="status"></div>
+  <div id="log"></div>
+</div>
+
+<!-- MEALS -->
+<div class="tab">
+  <h2>Meals</h2>
+
+  <input id="m" placeholder="Meal">
+  <input id="c" type="number" placeholder="Carbs">
+  <button class="action" onclick="addMeal()">Add</button>
+
+  <div id="meals"></div>
+</div>
+
+<!-- GRAPH -->
+<div class="tab">
+  <h2>Graph</h2>
+  <div class="card" id="trendBox"></div>
+  <canvas id="graph" width="320" height="200"></canvas>
+</div>
+
+<script>
+
+let data = [];
+let meals = [];
+let ema = null;
+let alpha = 0.5; // EMA(3)
+
+/* TAB */
+function tab(i){
+  document.querySelectorAll(".tab").forEach((t,x)=>{
+    t.classList.toggle("active", x===i);
+  });
+  document.querySelectorAll(".nav button").forEach((b,x)=>{
+    b.classList.toggle("active", x===i);
+  });
+
+  draw();
+}
+
+/* ADD GLUCOSE */
+function add(){
+  let v = parseFloat(document.getElementById("g").value);
+  if(isNaN(v)) return;
+
+  data.push(v);
+  document.getElementById("g").value = "";
+
+  ema = ema===null ? v : alpha*v + (1-alpha)*ema;
+
+  update();
+}
+
+/* MEALS */
+function addMeal(){
+  let m = document.getElementById("m").value;
+  let c = parseFloat(document.getElementById("c").value);
+  if(!m || isNaN(c)) return;
+
+  meals.push({m,c});
+  document.getElementById("m").value = "";
+  document.getElementById("c").value = "";
+
+  update();
+}
+
+/* TREND */
+function trend(){
+  if(data.length < 2 || ema===null) return "Not enough data";
+
+  let last = data[data.length-1];
+  let diff = last - ema;
+
+  if(diff > 0.2) return "📈 Up";
+  if(diff < -0.2) return "📉 Down";
+  return "➡ Stable";
+}
+
+/* LINE OF BEST FIT */
+function lobf(){
+  let n = data.length;
+  if(n < 2) return [];
+
+  let sumX=0,sumY=0,sumXY=0,sumX2=0;
+
+  for(let i=0;i<n;i++){
+    sumX += i;
+    sumY += data[i];
+    sumXY += i*data[i];
+    sumX2 += i*i;
+  }
+
+  let m = (n*sumXY - sumX*sumY)/(n*sumX2 - sumX*sumX);
+  let b = (sumY - m*sumX)/n;
+
+  let line = [];
+  for(let i=0;i<n;i++){
+    line.push(m*i + b);
+  }
+  return line;
+}
+
+/* DRAW GRAPH */
+function draw(){
+  let c = document.getElementById("graph");
+  let ctx = c.getContext("2d");
+
+  ctx.clearRect(0,0,c.width,c.height);
+
+  if(data.length < 2) return;
+
+  let max = Math.max(...data);
+  let min = Math.min(...data);
+  let range = max-min || 1;
+
+  function y(v){
+    return c.height - ((v-min)/range)*c.height;
+  }
+
+  // raw line
+  ctx.beginPath();
+  ctx.strokeStyle = "cyan";
+
+  data.forEach((v,i)=>{
+    let x = (i/(data.length-1))*c.width;
+    let yy = y(v);
+
+    if(i===0) ctx.moveTo(x,yy);
+    else ctx.lineTo(x,yy);
+  });
+  ctx.stroke();
+
+  // LOBF line
+  let fit = lobf();
+  if(fit.length>0){
+    ctx.beginPath();
+    ctx.strokeStyle = "yellow";
+
+    fit.forEach((v,i)=>{
+      let x = (i/(fit.length-1))*c.width;
+      let yy = y(v);
+
+      if(i===0) ctx.moveTo(x,yy);
+      else ctx.lineTo(x,yy);
+    });
+
+    ctx.stroke();
+  }
+}
+
+/* UPDATE UI */
+function update(){
+
+  document.getElementById("status").innerHTML =
+    `<div class="card">Trend: ${trend()}</div>`;
+
+  document.getElementById("log").innerHTML =
+    data.slice().reverse().map(v=>{
+      return `<div class="card">🩸 ${v}</div>`;
+    }).join("");
+
+  document.getElementById("meals").innerHTML =
+    meals.map(m=>{
+      return `<div class="card">🍽 ${m.m} - ${m.c}g</div>`;
+    }).join("");
+
+  draw();
+}
+
+</script>
+
+</body>
+</html>
