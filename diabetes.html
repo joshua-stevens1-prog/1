@@ -2,76 +2,73 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Health Tracker Pro</title>
+<title>Health Tracker Pro+</title>
 
 <style>
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-  background: #0b1220;
-  color: white;
+body{
+  margin:0;
+  font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+  background:#0b1220;
+  color:white;
 }
 
 /* NAV */
-.nav {
-  display: flex;
-  position: sticky;
-  top: 0;
-  background: #111a2e;
+.nav{
+  display:flex;
+  position:sticky;
+  top:0;
+  background:#111a2e;
 }
 
-.nav button {
-  flex: 1;
-  padding: 14px;
-  border: none;
-  background: transparent;
-  color: white;
+.nav button{
+  flex:1;
+  padding:14px;
+  border:none;
+  background:transparent;
+  color:white;
 }
 
-.nav button.active {
-  background: #1f2a44;
+.nav button.active{
+  background:#1f2a44;
 }
 
 /* TABS */
-.tab {
-  display: none;
-  padding: 15px;
-}
-.tab.active { display: block; }
+.tab{display:none;padding:15px;}
+.tab.active{display:block;}
 
-/* GLASS */
-.card {
-  background: rgba(255,255,255,0.08);
-  border-radius: 14px;
-  padding: 10px;
-  margin: 10px 0;
-  backdrop-filter: blur(10px);
+/* GLASS UI */
+.card{
+  background:rgba(255,255,255,0.08);
+  border-radius:14px;
+  padding:10px;
+  margin:10px 0;
+  backdrop-filter:blur(10px);
 }
 
-/* INPUT */
-input {
-  padding: 10px;
-  border-radius: 10px;
-  border: none;
-  margin: 5px;
-  background: rgba(255,255,255,0.1);
-  color: white;
+/* INPUTS */
+input{
+  padding:10px;
+  margin:5px;
+  border-radius:10px;
+  border:none;
+  background:rgba(255,255,255,0.1);
+  color:white;
 }
 
-button.action {
-  padding: 10px;
-  border-radius: 10px;
-  border: none;
-  background: #2b6fff;
-  color: white;
-  margin: 5px;
+button.action{
+  padding:10px;
+  border-radius:10px;
+  border:none;
+  background:#2b6fff;
+  color:white;
+  margin:5px;
 }
 
 /* GRAPH */
-canvas {
-  background: rgba(255,255,255,0.05);
-  border-radius: 14px;
-  margin-top: 10px;
+canvas{
+  background:rgba(255,255,255,0.05);
+  border-radius:14px;
+  margin-top:10px;
 }
 </style>
 </head>
@@ -81,18 +78,20 @@ canvas {
 <div class="nav">
   <button class="active" onclick="tab(0)">🩸 Tracker</button>
   <button onclick="tab(1)">🍽 Meals</button>
-  <button onclick="tab(2)">📊 Graph</button>
+  <button onclick="tab(2)">🔥 Calories</button>
 </div>
 
 <!-- TRACKER -->
 <div class="tab active">
-  <h2>Glucose</h2>
+  <h2>Glucose Tracker</h2>
 
   <input id="g" type="number" step="0.1" placeholder="mmol/L">
   <button class="action" onclick="add()">Add</button>
 
   <div id="status"></div>
   <div id="log"></div>
+
+  <canvas id="graph" width="340" height="220"></canvas>
 </div>
 
 <!-- MEALS -->
@@ -106,160 +105,203 @@ canvas {
   <div id="meals"></div>
 </div>
 
-<!-- GRAPH -->
+<!-- CALORIES -->
 <div class="tab">
-  <h2>Graph</h2>
-  <div class="card" id="trendBox"></div>
-  <canvas id="graph" width="320" height="200"></canvas>
+  <h2>Calories</h2>
+
+  <input id="food" placeholder="Food">
+  <input id="cal" type="number" placeholder="Calories">
+  <button class="action" onclick="addCal()">Add</button>
+
+  <div id="calLog"></div>
+  <div id="totalCal"></div>
 </div>
 
 <script>
 
-let data = [];
-let meals = [];
-let ema = null;
-let alpha = 0.5; // EMA(3)
+let data=[];
+let meals=[];
+let cal=[];
+let ema=null;
+let alpha=0.5; // EMA(3)
 
 /* TAB */
 function tab(i){
   document.querySelectorAll(".tab").forEach((t,x)=>{
-    t.classList.toggle("active", x===i);
+    t.classList.toggle("active",x===i);
   });
   document.querySelectorAll(".nav button").forEach((b,x)=>{
-    b.classList.toggle("active", x===i);
+    b.classList.toggle("active",x===i);
   });
-
   draw();
 }
 
-/* ADD GLUCOSE */
+/* GLUCOSE */
 function add(){
-  let v = parseFloat(document.getElementById("g").value);
+  let v=parseFloat(document.getElementById("g").value);
   if(isNaN(v)) return;
 
   data.push(v);
-  document.getElementById("g").value = "";
+  document.getElementById("g").value="";
 
-  ema = ema===null ? v : alpha*v + (1-alpha)*ema;
+  ema = ema===null ? v : alpha*v+(1-alpha)*ema;
 
   update();
 }
 
 /* MEALS */
 function addMeal(){
-  let m = document.getElementById("m").value;
-  let c = parseFloat(document.getElementById("c").value);
-  if(!m || isNaN(c)) return;
+  let m=document.getElementById("m").value;
+  let c=parseFloat(document.getElementById("c").value);
+  if(!m||isNaN(c)) return;
 
   meals.push({m,c});
-  document.getElementById("m").value = "";
-  document.getElementById("c").value = "";
+  document.getElementById("m").value="";
+  document.getElementById("c").value="";
+  update();
+}
 
+/* CAL */
+function addCal(){
+  let f=document.getElementById("food").value;
+  let c=parseFloat(document.getElementById("cal").value);
+  if(!f||isNaN(c)) return;
+
+  cal.push({f,c});
+  document.getElementById("food").value="";
+  document.getElementById("cal").value="";
   update();
 }
 
 /* TREND */
 function trend(){
-  if(data.length < 2 || ema===null) return "Not enough data";
+  if(!ema||data.length<2) return "Not enough data";
+  let d=data[data.length-1]-ema;
 
-  let last = data[data.length-1];
-  let diff = last - ema;
-
-  if(diff > 0.2) return "📈 Up";
-  if(diff < -0.2) return "📉 Down";
+  if(d>0.2) return "📈 Rising";
+  if(d<-0.2) return "📉 Falling";
   return "➡ Stable";
 }
 
-/* LINE OF BEST FIT */
+/* LOBF */
 function lobf(){
-  let n = data.length;
-  if(n < 2) return [];
+  let n=data.length;
+  if(n<2) return [];
 
-  let sumX=0,sumY=0,sumXY=0,sumX2=0;
+  let sx=0,sy=0,sxy=0,sx2=0;
 
   for(let i=0;i<n;i++){
-    sumX += i;
-    sumY += data[i];
-    sumXY += i*data[i];
-    sumX2 += i*i;
+    sx+=i; sy+=data[i];
+    sxy+=i*data[i];
+    sx2+=i*i;
   }
 
-  let m = (n*sumXY - sumX*sumY)/(n*sumX2 - sumX*sumX);
-  let b = (sumY - m*sumX)/n;
+  let m=(n*sxy-sx*sy)/(n*sx2-sx*sx);
+  let b=(sy-m*sx)/n;
 
-  let line = [];
-  for(let i=0;i<n;i++){
-    line.push(m*i + b);
-  }
-  return line;
+  return data.map((_,i)=>m*i+b);
 }
 
-/* DRAW GRAPH */
+/* GRAPH */
 function draw(){
-  let c = document.getElementById("graph");
-  let ctx = c.getContext("2d");
+  let c=document.getElementById("graph");
+  let ctx=c.getContext("2d");
 
   ctx.clearRect(0,0,c.width,c.height);
 
-  if(data.length < 2) return;
+  if(data.length<2) return;
 
-  let max = Math.max(...data);
-  let min = Math.min(...data);
-  let range = max-min || 1;
+  let max=Math.max(...data);
+  let min=Math.min(...data);
+  let range=max-min||1;
 
   function y(v){
-    return c.height - ((v-min)/range)*c.height;
+    return c.height-((v-min)/range)*c.height;
   }
 
-  // raw line
+  function x(i){
+    return (i/(data.length-1))*c.width;
+  }
+
+  /* LOW DANGER ZONE (<3 mmol/L) */
+  ctx.fillStyle="rgba(255,0,0,0.08)";
+  let lowY=y(3);
+  ctx.fillRect(0,lowY,c.width,c.height-lowY);
+
+  /* GRID */
+  ctx.strokeStyle="rgba(255,255,255,0.1)";
+  for(let i=0;i<5;i++){
+    let yy=(c.height/5)*i;
+    ctx.beginPath();
+    ctx.moveTo(0,yy);
+    ctx.lineTo(c.width,yy);
+    ctx.stroke();
+  }
+
+  /* RAW LINE */
   ctx.beginPath();
-  ctx.strokeStyle = "cyan";
+  ctx.strokeStyle="cyan";
+  ctx.lineWidth=2;
 
   data.forEach((v,i)=>{
-    let x = (i/(data.length-1))*c.width;
-    let yy = y(v);
-
-    if(i===0) ctx.moveTo(x,yy);
-    else ctx.lineTo(x,yy);
+    if(i===0) ctx.moveTo(x(i),y(v));
+    else ctx.lineTo(x(i),y(v));
   });
   ctx.stroke();
 
-  // LOBF line
-  let fit = lobf();
-  if(fit.length>0){
-    ctx.beginPath();
-    ctx.strokeStyle = "yellow";
+  /* EMA LINE */
+  let e=null;
+  let emaLine=[];
 
-    fit.forEach((v,i)=>{
-      let x = (i/(fit.length-1))*c.width;
-      let yy = y(v);
-
-      if(i===0) ctx.moveTo(x,yy);
-      else ctx.lineTo(x,yy);
-    });
-
-    ctx.stroke();
+  for(let v of data){
+    e = e===null ? v : alpha*v+(1-alpha)*e;
+    emaLine.push(e);
   }
+
+  ctx.beginPath();
+  ctx.strokeStyle="lime";
+  emaLine.forEach((v,i)=>{
+    if(i===0) ctx.moveTo(x(i),y(v));
+    else ctx.lineTo(x(i),y(v));
+  });
+  ctx.stroke();
+
+  /* LOBF */
+  let fit=lobf();
+
+  ctx.beginPath();
+  ctx.strokeStyle="yellow";
+  fit.forEach((v,i)=>{
+    if(i===0) ctx.moveTo(x(i),y(v));
+    else ctx.lineTo(x(i),y(v));
+  });
+  ctx.stroke();
 }
 
 /* UPDATE UI */
 function update(){
 
-  document.getElementById("status").innerHTML =
+  document.getElementById("status").innerHTML=
     `<div class="card">Trend: ${trend()}</div>`;
 
-  document.getElementById("log").innerHTML =
-    data.slice().reverse().map(v=>{
-      return `<div class="card">🩸 ${v}</div>`;
-    }).join("");
+  document.getElementById("log").innerHTML=
+    data.slice().reverse().map(v=>`<div class="card">🩸 ${v}</div>`).join("");
 
-  document.getElementById("meals").innerHTML =
-    meals.map(m=>{
-      return `<div class="card">🍽 ${m.m} - ${m.c}g</div>`;
-    }).join("");
+  document.getElementById("meals").innerHTML=
+    meals.map(m=>`<div class="card">🍽 ${m.m} - ${m.c}g</div>`).join("");
+
+  let total=cal.reduce((s,x)=>s+x.c,0);
+
+  document.getElementById("calLog").innerHTML=
+    cal.map(c=>`<div class="card">🔥 ${c.f} - ${c.c}</div>`).join("");
+
+  document.getElementById("totalCal").innerHTML=
+    `<div class="card"><b>Total:</b> ${total} kcal</div>`;
 
   draw();
 }
+
+update();
 
 </script>
 
