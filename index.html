@@ -118,7 +118,172 @@ canvas{
 </div>
 
 <script>
-// JS GOES HERE (next section)
+let data=[];
+let nutrition=[];
+
+let ema=null;
+let alpha=0.5;
+
+let showAdd=false;
+let showPicker=false;
+let showHistory=false;
+
+/* TAB */
+function tab(i){
+  document.querySelectorAll(".tab").forEach((t,x)=>{
+    t.classList.toggle("active",x===i);
+  });
+  document.querySelectorAll(".nav button").forEach((b,x)=>{
+    b.classList.toggle("active",x===i);
+  });
+  draw();
+  renderNutrition();
+}
+
+/* GLUCOSE */
+function addGlucose(){
+  let v=parseFloat(document.getElementById("g").value);
+  if(isNaN(v)) return;
+
+  data.push(v);
+  ema = ema===null ? v : alpha*v+(1-alpha)*ema;
+
+  document.getElementById("g").value="";
+  update();
+}
+
+/* TREND */
+function trend(){
+  if(!ema || data.length<2) return "Not enough data";
+
+  let d=data[data.length-1]-ema;
+
+  if(d>0.2) return "📈 Rising";
+  if(d<-0.2) return "📉 Falling";
+  return "➡ Stable";
+}
+
+/* GRAPH (simple version) */
+function draw(){
+  let c=document.getElementById("graph");
+  let ctx=c.getContext("2d");
+  ctx.clearRect(0,0,c.width,c.height);
+
+  if(data.length<2) return;
+
+  let max=Math.max(...data);
+  let min=Math.min(...data);
+  let range=max-min||1;
+
+  let x=i=>(i/(data.length-1))*c.width;
+  let y=v=>c.height-((v-min)/range)*c.height;
+
+  ctx.beginPath();
+  ctx.strokeStyle="cyan";
+
+  data.forEach((v,i)=>{
+    if(i===0) ctx.moveTo(x(i),y(v));
+    else ctx.lineTo(x(i),y(v));
+  });
+
+  ctx.stroke();
+}
+
+/* UPDATE */
+function update(){
+  document.getElementById("status").innerHTML=
+    `<div class="card">Trend: ${trend()}</div>`;
+
+  document.getElementById("log").innerHTML=
+    data.slice().reverse().map(v=>`<div class="card">🩸 ${v}</div>`).join("");
+
+  draw();
+}
+
+/* NUTRITION TOGGLES */
+function toggleAdd(){
+  showAdd=!showAdd;
+  document.getElementById("addBox").style.display=showAdd?"block":"none";
+}
+
+function togglePicker(){
+  showPicker=!showPicker;
+  document.getElementById("pickBox").style.display=showPicker?"block":"none";
+  renderPicker();
+}
+
+function toggleHistory(){
+  showHistory=!showHistory;
+  document.getElementById("nutritionList").style.display=
+    showHistory?"block":"none";
+}
+
+/* ADD MEAL */
+function addNutrition(){
+  let name=document.getElementById("foodName").value;
+  let carbs=parseFloat(document.getElementById("foodCarbs").value)||0;
+  let cal=parseFloat(document.getElementById("foodCal").value)||0;
+  let img=document.getElementById("foodImg").value;
+
+  if(!name) return;
+
+  nutrition.push({name,carbs,cal,img,time:Date.now()});
+
+  document.getElementById("foodName").value="";
+  document.getElementById("foodCarbs").value="";
+  document.getElementById("foodCal").value="";
+  document.getElementById("foodImg").value="";
+
+  renderNutrition();
+}
+
+/* PICKER */
+function renderPicker(){
+  document.getElementById("pickBox").innerHTML=
+    nutrition.map((n,i)=>`
+      <div class="card" onclick="useMeal(${i})">
+        <b>${n.name}</b><br>
+        🍞 ${n.carbs}g | 🔥 ${n.cal}
+      </div>
+    `).join("");
+}
+
+function useMeal(i){
+  let m=nutrition[i];
+  nutrition.push(m);
+  renderNutrition();
+}
+
+/* NUTRITION VIEW */
+function renderNutrition(){
+  let now=Date.now();
+  let day=86400000;
+
+  let recent=nutrition.filter(n=>now-n.time<day);
+
+  let carbs=recent.reduce((s,x)=>s+x.carbs,0);
+  let cal=recent.reduce((s,x)=>s+x.cal,0);
+
+  document.getElementById("nutritionSummary").innerHTML=
+    `<div class="card">
+      TODAY<br>
+      Carbs: ${carbs}g<br>
+      Calories: ${cal}
+    </div>`;
+
+  document.getElementById("nutritionList").innerHTML=
+    recent.slice().reverse().map(n=>`
+      <div class="card">
+        <b>${n.name}</b><br>
+        🍞 ${n.carbs}g | 🔥 ${n.cal}
+        ${n.img?`<img src="${n.img}" style="width:100%;border-radius:10px;margin-top:8px;">`:""}
+      </div>
+    `).join("");
+}
+
+/* INIT */
+update();
+renderNutrition();
 </script>
 
 </body>
