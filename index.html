@@ -2,7 +2,9 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Health Tracker Pro+</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+
+<title>Health Tracker</title>
 
 <style>
 body{
@@ -10,6 +12,7 @@ body{
   font-family:-apple-system,BlinkMacSystemFont,sans-serif;
   background:#0b1220;
   color:white;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* NAV */
@@ -18,14 +21,16 @@ body{
   position:sticky;
   top:0;
   background:#111a2e;
+  z-index:10;
 }
 
 .nav button{
   flex:1;
-  padding:14px;
+  padding:16px;
   border:none;
   background:transparent;
   color:white;
+  font-size:14px;
 }
 
 .nav button.active{
@@ -33,42 +38,55 @@ body{
 }
 
 /* TABS */
-.tab{display:none;padding:15px;}
-.tab.active{display:block;}
+.tab{
+  display:none;
+  padding:14px;
+}
 
-/* GLASS UI */
+.tab.active{
+  display:block;
+}
+
+/* CARDS */
 .card{
   background:rgba(255,255,255,0.08);
   border-radius:14px;
-  padding:10px;
+  padding:12px;
   margin:10px 0;
   backdrop-filter:blur(10px);
 }
 
 /* INPUTS */
 input{
-  padding:10px;
-  margin:5px;
-  border-radius:10px;
+  width:100%;
+  padding:14px;
+  margin:6px 0;
+  border-radius:12px;
   border:none;
+  font-size:16px;
   background:rgba(255,255,255,0.1);
   color:white;
 }
 
+/* BUTTONS */
 button.action{
-  padding:10px;
-  border-radius:10px;
+  width:100%;
+  padding:14px;
+  margin:6px 0;
+  border-radius:12px;
   border:none;
   background:#2b6fff;
   color:white;
-  margin:5px;
+  font-size:16px;
 }
 
 /* GRAPH */
 canvas{
+  width:100%;
+  height:220px;
+  margin-top:10px;
   background:rgba(255,255,255,0.05);
   border-radius:14px;
-  margin-top:10px;
 }
 </style>
 </head>
@@ -86,20 +104,20 @@ canvas{
   <h2>Glucose Tracker</h2>
 
   <input id="g" type="number" step="0.1" placeholder="mmol/L">
-  <button class="action" onclick="add()">Add</button>
+  <button class="action" onclick="addGlucose()">Add</button>
 
   <div id="status"></div>
   <div id="log"></div>
 
-  <canvas id="graph" width="340" height="220"></canvas>
+  <canvas id="graph"></canvas>
 </div>
 
 <!-- MEALS -->
 <div class="tab">
   <h2>Meals</h2>
 
-  <input id="m" placeholder="Meal">
-  <input id="c" type="number" placeholder="Carbs">
+  <input id="meal" placeholder="Meal name">
+  <input id="carbs" type="number" placeholder="Carbs (g)">
   <button class="action" onclick="addMeal()">Add</button>
 
   <div id="meals"></div>
@@ -122,8 +140,9 @@ canvas{
 let data=[];
 let meals=[];
 let cal=[];
+
 let ema=null;
-let alpha=0.5; // EMA(3)
+let alpha=0.5;
 
 /* TAB */
 function tab(i){
@@ -137,7 +156,7 @@ function tab(i){
 }
 
 /* GLUCOSE */
-function add(){
+function addGlucose(){
   let v=parseFloat(document.getElementById("g").value);
   if(isNaN(v)) return;
 
@@ -151,17 +170,17 @@ function add(){
 
 /* MEALS */
 function addMeal(){
-  let m=document.getElementById("m").value;
-  let c=parseFloat(document.getElementById("c").value);
+  let m=document.getElementById("meal").value;
+  let c=parseFloat(document.getElementById("carbs").value);
   if(!m||isNaN(c)) return;
 
   meals.push({m,c});
-  document.getElementById("m").value="";
-  document.getElementById("c").value="";
+  document.getElementById("meal").value="";
+  document.getElementById("carbs").value="";
   update();
 }
 
-/* CAL */
+/* CALORIES */
 function addCal(){
   let f=document.getElementById("food").value;
   let c=parseFloat(document.getElementById("cal").value);
@@ -176,6 +195,7 @@ function addCal(){
 /* TREND */
 function trend(){
   if(!ema||data.length<2) return "Not enough data";
+
   let d=data[data.length-1]-ema;
 
   if(d>0.2) return "📈 Rising";
@@ -191,7 +211,8 @@ function lobf(){
   let sx=0,sy=0,sxy=0,sx2=0;
 
   for(let i=0;i<n;i++){
-    sx+=i; sy+=data[i];
+    sx+=i;
+    sy+=data[i];
     sxy+=i*data[i];
     sx2+=i*i;
   }
@@ -205,8 +226,9 @@ function lobf(){
 /* GRAPH */
 function draw(){
   let c=document.getElementById("graph");
-  let ctx=c.getContext("2d");
+  if(!c) return;
 
+  let ctx=c.getContext("2d");
   ctx.clearRect(0,0,c.width,c.height);
 
   if(data.length<2) return;
@@ -215,33 +237,17 @@ function draw(){
   let min=Math.min(...data);
   let range=max-min||1;
 
-  function y(v){
-    return c.height-((v-min)/range)*c.height;
-  }
+  let x=i=>(i/(data.length-1))*c.width;
+  let y=v=>c.height-((v-min)/range)*c.height;
 
-  function x(i){
-    return (i/(data.length-1))*c.width;
-  }
-
-  /* LOW DANGER ZONE (<3 mmol/L) */
-  ctx.fillStyle="rgba(255,0,0,0.08)";
+  /* LOW ZONE */
   let lowY=y(3);
+  ctx.fillStyle="rgba(255,0,0,0.08)";
   ctx.fillRect(0,lowY,c.width,c.height-lowY);
 
-  /* GRID */
-  ctx.strokeStyle="rgba(255,255,255,0.1)";
-  for(let i=0;i<5;i++){
-    let yy=(c.height/5)*i;
-    ctx.beginPath();
-    ctx.moveTo(0,yy);
-    ctx.lineTo(c.width,yy);
-    ctx.stroke();
-  }
-
-  /* RAW LINE */
+  /* RAW */
   ctx.beginPath();
   ctx.strokeStyle="cyan";
-  ctx.lineWidth=2;
 
   data.forEach((v,i)=>{
     if(i===0) ctx.moveTo(x(i),y(v));
@@ -249,20 +255,15 @@ function draw(){
   });
   ctx.stroke();
 
-  /* EMA LINE */
+  /* EMA */
   let e=null;
-  let emaLine=[];
-
-  for(let v of data){
-    e = e===null ? v : alpha*v+(1-alpha)*e;
-    emaLine.push(e);
-  }
-
   ctx.beginPath();
   ctx.strokeStyle="lime";
-  emaLine.forEach((v,i)=>{
-    if(i===0) ctx.moveTo(x(i),y(v));
-    else ctx.lineTo(x(i),y(v));
+
+  data.forEach((v,i)=>{
+    e = e===null ? v : alpha*v+(1-alpha)*e;
+    if(i===0) ctx.moveTo(x(i),y(e));
+    else ctx.lineTo(x(i),y(e));
   });
   ctx.stroke();
 
@@ -271,14 +272,16 @@ function draw(){
 
   ctx.beginPath();
   ctx.strokeStyle="yellow";
+
   fit.forEach((v,i)=>{
     if(i===0) ctx.moveTo(x(i),y(v));
     else ctx.lineTo(x(i),y(v));
   });
+
   ctx.stroke();
 }
 
-/* UPDATE UI */
+/* UPDATE */
 function update(){
 
   document.getElementById("status").innerHTML=
