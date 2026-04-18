@@ -94,14 +94,32 @@ canvas{
   <canvas id="graph"></canvas>
 </div>
 
-<!-- NUTRITION -->
 <div class="tab">
   <h2>Nutrition</h2>
 
-  <button class="action" onclick="toggleAdd()">➕ Add New Meal</button>
-  <button class="action" onclick="togglePicker()">📋 Choose Meal</button>
-  <button class="action" onclick="toggleHistory()">📜 Toggle Recent</button>
+  <!-- TOP SUMMARY -->
+  <div id="nutritionSummary"></div>
 
+  <!-- FLOATING CORNER BUTTONS -->
+  <div style="position:fixed;bottom:20px;right:20px;display:flex;flex-direction:column;gap:10px;z-index:999;">
+    
+    <!-- ADD BUTTON -->
+    <button onclick="toggleAdd()"
+      style="width:55px;height:55px;border-radius:50%;border:none;
+      background:#2b6fff;color:white;font-size:26px;">
+      +
+    </button>
+
+    <!-- HISTORY BUTTON -->
+    <button onclick="toggleHistory()"
+      style="width:55px;height:55px;border-radius:50%;border:none;
+      background:#1f2a44;color:white;font-size:16px;">
+      📜
+    </button>
+
+  </div>
+
+  <!-- ADD MEAL PANEL -->
   <div id="addBox" style="display:none;">
     <input id="foodName" placeholder="Meal name">
     <input id="foodCarbs" type="number" placeholder="Carbs (g)">
@@ -110,10 +128,10 @@ canvas{
     <button class="action" onclick="addNutrition()">Save Meal</button>
   </div>
 
+  <!-- PICKER -->
   <div id="pickBox" style="display:none;"></div>
 
-  <div id="nutritionSummary"></div>
-
+  <!-- HISTORY (now hidden until button press) -->
   <div id="nutritionList" style="display:none;"></div>
 </div>
 
@@ -200,24 +218,15 @@ function update(){
   draw();
 }
 
-/* NUTRITION TOGGLES */
 function toggleAdd(){
-  showAdd=!showAdd;
-  document.getElementById("addBox").style.display=showAdd?"block":"none";
-}
-
-function togglePicker(){
-  showPicker=!showPicker;
-  document.getElementById("pickBox").style.display=showPicker?"block":"none";
-  renderPicker();
+  let box = document.getElementById("addBox");
+  box.style.display = (box.style.display === "block") ? "none" : "block";
 }
 
 function toggleHistory(){
-  showHistory=!showHistory;
-  document.getElementById("nutritionList").style.display=
-    showHistory?"block":"none";
+  let box = document.getElementById("nutritionList");
+  box.style.display = (box.style.display === "block") ? "none" : "block";
 }
-
 /* ADD MEAL */
 function addNutrition(){
   let name=document.getElementById("foodName").value;
