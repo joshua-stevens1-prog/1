@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title>Health Tracker Pro</title>
+<title>Health Tracker</title>
 
 <style>
 body{
@@ -41,7 +41,6 @@ body{
   border-radius:14px;
   padding:12px;
   margin:10px 0;
-  backdrop-filter:blur(10px);
 }
 
 input{
@@ -80,7 +79,6 @@ canvas{
 <div class="nav">
   <button class="active" onclick="tab(0)">🩸 Tracker</button>
   <button onclick="tab(1)">🍽 Nutrition</button>
-  <button onclick="tab(2)">📜 History</button>
 </div>
 
 <!-- TRACKER -->
@@ -100,238 +98,27 @@ canvas{
 <div class="tab">
   <h2>Nutrition</h2>
 
-  <input id="foodName" placeholder="Meal name">
-  <input id="foodCarbs" type="number" placeholder="Carbs (g)">
-  <input id="foodCal" type="number" placeholder="Calories">
-  <input id="foodImg" placeholder="Image URL (optional)">
+  <button class="action" onclick="toggleAdd()">➕ Add New Meal</button>
+  <button class="action" onclick="togglePicker()">📋 Choose Meal</button>
+  <button class="action" onclick="toggleHistory()">📜 Toggle Recent</button>
 
-  <button class="action" onclick="addNutrition()">Add Meal</button>
-
-  <div>
-    <button class="action" onclick="setView('daily')">Daily</button>
-    <button class="action" onclick="setView('weekly')">Weekly</button>
+  <div id="addBox" style="display:none;">
+    <input id="foodName" placeholder="Meal name">
+    <input id="foodCarbs" type="number" placeholder="Carbs (g)">
+    <input id="foodCal" type="number" placeholder="Calories">
+    <input id="foodImg" placeholder="Image URL (optional)">
+    <button class="action" onclick="addNutrition()">Save Meal</button>
   </div>
 
-  <div id="nutritionSummary"></div>
-  <div id="nutritionList"></div>
-</div>
+  <div id="pickBox" style="display:none;"></div>
 
-<!-- HISTORY -->
-<div class="tab">
-  <h2>History</h2>
-  <div id="history"></div>
+  <div id="nutritionSummary"></div>
+
+  <div id="nutritionList" style="display:none;"></div>
 </div>
 
 <script>
-
-/* DATA */
-let data = JSON.parse(localStorage.getItem("glucose") || "[]");
-let nutrition = JSON.parse(localStorage.getItem("nutrition") || "[]");
-
-let ema = null;
-let alpha = 0.5;
-let viewMode = "daily";
-
-/* TAB */
-function tab(i){
-  document.querySelectorAll(".tab").forEach((t,x)=>{
-    t.classList.toggle("active",x===i);
-  });
-  document.querySelectorAll(".nav button").forEach((b,x)=>{
-    b.classList.toggle("active",x===i);
-  });
-  draw();
-  renderNutrition();
-  renderHistory();
-}
-
-/* GLUCOSE */
-function addGlucose(){
-  let v=parseFloat(document.getElementById("g").value);
-  if(isNaN(v)) return;
-
-  data.push({v,time:Date.now()});
-  localStorage.setItem("glucose",JSON.stringify(data));
-
-  ema = ema===null ? v : alpha*v+(1-alpha)*ema;
-
-  document.getElementById("g").value="";
-  update();
-}
-
-/* TREND */
-function trend(){
-  if(!ema || data.length<2) return "Not enough data";
-
-  let last=data[data.length-1].v;
-  let d=last-ema;
-
-  if(d>0.2) return "📈 Rising";
-  if(d<-0.2) return "📉 Falling";
-  return "➡ Stable";
-}
-
-/* LOBF */
-function lobf(){
-  let n=data.length;
-  if(n<2) return [];
-
-  let sx=0,sy=0,sxy=0,sx2=0;
-
-  for(let i=0;i<n;i++){
-    sx+=i;
-    sy+=data[i].v;
-    sxy+=i*data[i].v;
-    sx2+=i*i;
-  }
-
-  let m=(n*sxy-sx*sy)/(n*sx2-sx*sx);
-  let b=(sy-m*sx)/n;
-
-  return data.map((_,i)=>m*i+b);
-}
-
-/* GRAPH */
-function draw(){
-  let c=document.getElementById("graph");
-  if(!c) return;
-
-  let ctx=c.getContext("2d");
-  ctx.clearRect(0,0,c.width,c.height);
-
-  if(data.length<2) return;
-
-  let vals=data.map(d=>d.v);
-  let max=Math.max(...vals);
-  let min=Math.min(...vals);
-  let range=max-min||1;
-
-  let x=i=>(i/(data.length-1))*c.width;
-  let y=v=>c.height-((v-min)/range)*c.height;
-
-  /* LOW ZONE */
-  let lowY=y(3);
-  ctx.fillStyle="rgba(255,0,0,0.08)";
-  ctx.fillRect(0,lowY,c.width,c.height-lowY);
-
-  /* RAW */
-  ctx.beginPath();
-  ctx.strokeStyle="cyan";
-  data.forEach((d,i)=>{
-    if(i===0) ctx.moveTo(x(i),y(d.v));
-    else ctx.lineTo(x(i),y(d.v));
-  });
-  ctx.stroke();
-
-  /* EMA */
-  let e=null;
-  ctx.beginPath();
-  ctx.strokeStyle="lime";
-  data.forEach((d,i)=>{
-    e=e===null?d.v:alpha*d.v+(1-alpha)*e;
-    if(i===0) ctx.moveTo(x(i),y(e));
-    else ctx.lineTo(x(i),y(e));
-  });
-  ctx.stroke();
-
-  /* LOBF */
-  let fit=lobf();
-  ctx.beginPath();
-  ctx.strokeStyle="yellow";
-  fit.forEach((v,i)=>{
-    if(i===0) ctx.moveTo(x(i),y(v));
-    else ctx.lineTo(x(i),y(v));
-  });
-  ctx.stroke();
-}
-
-/* UPDATE */
-function update(){
-
-  document.getElementById("status").innerHTML=
-    `<div class="card">Trend: ${trend()}</div>`;
-
-  document.getElementById("log").innerHTML=
-    data.slice().reverse().map(d=>`<div class="card">🩸 ${d.v}</div>`).join("");
-
-  draw();
-  renderHistory();
-}
-
-/* NUTRITION */
-function addNutrition(){
-  let name=document.getElementById("foodName").value;
-  let carbs=parseFloat(document.getElementById("foodCarbs").value)||0;
-  let cal=parseFloat(document.getElementById("foodCal").value)||0;
-  let img=document.getElementById("foodImg").value;
-
-  if(!name) return;
-
-  nutrition.push({name,carbs,cal,img,time:Date.now()});
-  localStorage.setItem("nutrition",JSON.stringify(nutrition));
-
-  document.getElementById("foodName").value="";
-  document.getElementById("foodCarbs").value="";
-  document.getElementById("foodCal").value="";
-  document.getElementById("foodImg").value="";
-
-  renderNutrition();
-}
-
-/* FILTER */
-function getNutrition(){
-  let now=Date.now();
-  let day=86400000;
-
-  return nutrition.filter(n=>{
-    if(viewMode==="daily") return now-n.time<day;
-    if(viewMode==="weekly") return now-n.time<day*7;
-    return true;
-  });
-}
-
-/* RENDER NUTRITION */
-function renderNutrition(){
-
-  let list=getNutrition();
-
-  let carbs=list.reduce((s,x)=>s+x.carbs,0);
-  let cal=list.reduce((s,x)=>s+x.cal,0);
-
-  document.getElementById("nutritionSummary").innerHTML=
-    `<div class="card">
-      ${viewMode.toUpperCase()}<br>
-      Carbs: ${carbs}g<br>
-      Calories: ${cal} kcal
-    </div>`;
-
-  document.getElementById("nutritionList").innerHTML=
-    list.slice().reverse().map(n=>`
-      <div class="card">
-        <b>${n.name}</b><br>
-        🍞 ${n.carbs}g | 🔥 ${n.cal}
-        ${n.img?`<img src="${n.img}" style="width:100%;border-radius:10px;margin-top:8px;">`:""}
-      </div>
-    `).join("");
-}
-
-/* HISTORY */
-function renderHistory(){
-
-  let all=[];
-
-  data.forEach(d=>all.push({t:"🩸 Glucose",v:d.v}));
-  nutrition.forEach(n=>all.push({t:"🍽 Food",v:n.name}));
-
-  document.getElementById("history").innerHTML=
-    all.slice().reverse().map(x=>
-      `<div class="card"><b>${x.t}</b><br>${x.v}</div>`
-    ).join("");
-}
-
-renderNutrition();
-update();
-
+// JS GOES HERE (next section)
 </script>
 
 </body>
