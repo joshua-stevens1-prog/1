@@ -218,14 +218,25 @@ function update(){
   draw();
 }
 
+function closeAllPanels(){
+  document.getElementById("addBox").style.display = "none";
+  document.getElementById("nutritionList").style.display = "none";
+}
+
 function toggleAdd(){
   let box = document.getElementById("addBox");
-  box.style.display = (box.style.display === "block") ? "none" : "block";
+  let isOpen = box.style.display === "block";
+
+  closeAllPanels();
+  box.style.display = isOpen ? "none" : "block";
 }
 
 function toggleHistory(){
   let box = document.getElementById("nutritionList");
-  box.style.display = (box.style.display === "block") ? "none" : "block";
+  let isOpen = box.style.display === "block";
+
+  closeAllPanels();
+  box.style.display = isOpen ? "none" : "block";
 }
 /* ADD MEAL */
 function addNutrition(){
